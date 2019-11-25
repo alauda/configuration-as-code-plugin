@@ -26,7 +26,7 @@ public final class YamlUtils {
 
     public static final Logger LOGGER = Logger.getLogger(ConfigurationAsCode.class.getName());
 
-    public static Node merge(List<YamlSource> configs) throws ConfiguratorException {
+    public static Node merge(List<YamlSource> configs, MergeStrategy mergeStrategy) throws ConfiguratorException {
         Node root = null;
         for (YamlSource source : configs) {
             try (Reader r = source.read()) {
@@ -37,7 +37,7 @@ public final class YamlUtils {
                     root = node;
                 } else {
                     if (node != null) {
-                        merge(root, node, source.toString());
+                        mergeStrategy.merge(root, node, source.toString());
                     }
                 }
             } catch (IOException io) {
@@ -93,8 +93,7 @@ public final class YamlUtils {
                 map.getValue().addAll(map2.getValue());
                 return;
             default:
-                throw new ConfiguratorException(
-                        String.format("Found conflicting configuration at %s %s", source, node.getStartMark()));
+                new OverrideMergeStrategy().merge(root, node, source);
         }
 
     }
@@ -102,9 +101,9 @@ public final class YamlUtils {
     /**
      * Load configuration-as-code model from a set of Yaml sources, merging documents
      */
-    public static Mapping loadFrom(List<YamlSource> sources) throws ConfiguratorException {
+    public static Mapping loadFrom(List<YamlSource> sources, MergeStrategy mergeStrategy) throws ConfiguratorException {
         if (sources.isEmpty()) return Mapping.EMPTY;
-        final Node merged = merge(sources);
+        final Node merged = merge(sources, mergeStrategy);
         if (merged == null) {
             LOGGER.warning("configuration-as-code yaml source returned an empty document.");
             return Mapping.EMPTY;
