@@ -37,7 +37,7 @@ public final class YamlUtils {
                     root = node;
                 } else {
                     if (node != null) {
-                        mergeStrategy.merge(root, node, source.toString());
+                        root = mergeStrategy.merge(root, node, source.toString());
                     }
                 }
             } catch (IOException io) {

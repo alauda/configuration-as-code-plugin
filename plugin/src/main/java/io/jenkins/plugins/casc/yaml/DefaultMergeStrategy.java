@@ -14,7 +14,7 @@ import java.util.Iterator;
 public class DefaultMergeStrategy implements MergeStrategy {
 
     @Override
-    public void merge(Node root, Node node, String source) throws ConfiguratorException {
+    public Node merge(Node root, Node node, String source) throws ConfiguratorException {
         if (root.getNodeId() != node.getNodeId()) {
             // means one of those yaml file doesn't conform to JCasC schema
             throw new ConfiguratorException(
@@ -26,7 +26,7 @@ public class DefaultMergeStrategy implements MergeStrategy {
                 SequenceNode seq = (SequenceNode) root;
                 SequenceNode seq2 = (SequenceNode) node;
                 seq.getValue().addAll(seq2.getValue());
-                return;
+                return root;
             case mapping:
                 MappingNode map = (MappingNode) root;
                 MappingNode map2 = (MappingNode) node;
@@ -52,7 +52,7 @@ public class DefaultMergeStrategy implements MergeStrategy {
                 }
                 // .. and add others
                 map.getValue().addAll(map2.getValue());
-                return;
+                return root;
             default:
                 throw new ConfiguratorException(
                         String.format("Found conflicting configuration at %s %s", source, node.getStartMark()));
