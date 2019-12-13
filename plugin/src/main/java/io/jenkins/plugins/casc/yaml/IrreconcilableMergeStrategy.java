@@ -11,7 +11,7 @@ import io.jenkins.plugins.casc.snakeyaml.nodes.SequenceNode;
 import java.util.Iterator;
 
 @Extension
-public class DefaultMergeStrategy implements MergeStrategy {
+public class IrreconcilableMergeStrategy implements MergeStrategy {
 
     @Override
     public Node merge(Node root, Node node, String source) throws ConfiguratorException {
@@ -61,6 +61,6 @@ public class DefaultMergeStrategy implements MergeStrategy {
 
     @Override
     public String getName() {
-        return "default";
+        return DEFAULT_STRATEGY;
     }
 }
