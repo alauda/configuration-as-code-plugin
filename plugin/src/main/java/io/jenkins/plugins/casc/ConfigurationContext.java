@@ -6,6 +6,7 @@ import io.jenkins.plugins.casc.model.CNode;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
+import org.kohsuke.accmod.Restricted;
 import org.kohsuke.stapler.Stapler;
 
 /**
@@ -109,6 +110,14 @@ public class ConfigurationContext implements ConfiguratorRegistry {
         return SecretSource.all();
     }
 
+    String getMode() {
+        return mode;
+    }
+
+    public void setMode(String mode) {
+        this.mode = mode;
+    }
+
     // Once we introduce some breaking change on the model inference mechanism, we will introduce `TWO` and so on
     // And this new mechanism will only get enabled when configuration file uses this version or later
     enum Version { ONE("1");
@@ -150,7 +159,7 @@ public class ConfigurationContext implements ConfiguratorRegistry {
     enum Unknown { reject, warn }
 
     /**
-     * Policy regarding {@link org.kohsuke.accmod.Restricted} attributes.
+     * Policy regarding {@link Restricted} attributes.
      */
     enum Restriction { reject, beta, warn }
 
