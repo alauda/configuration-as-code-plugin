@@ -20,6 +20,7 @@ import javax.inject.Inject;
 import javax.servlet.ServletContext;
 import jenkins.model.GlobalConfiguration;
 import jenkins.model.Jenkins;
+//import io.jenkins.plugins.casc.ConfigurationContext;
 
 @Extension(ordinal = 100)
 public class CasCBackup extends SaveableListener {
@@ -34,14 +35,18 @@ public class CasCBackup extends SaveableListener {
     @Override
     public void onChange(Saveable o, XmlFile file) {
         ConfigurationContext context = new ConfigurationContext(registry);
-        if (!context.isEnableBackup()) {
-            return;
-        }
+//        if (!context.isEnableBackup()) {
+//            return;
+//        }
+
+        LOGGER.warning("context.isEnableBackup()" + context.isEnableBackup());
 
         // only take care of the configuration which controlled by casc
         if (!(o instanceof GlobalConfiguration)) {
             return;
         }
+
+        LOGGER.info("start to backup casc yaml file");
 
         ByteArrayOutputStream buf = new ByteArrayOutputStream();
         try {
@@ -53,9 +58,9 @@ public class CasCBackup extends SaveableListener {
 
         final ServletContext servletContext = Jenkins.getInstance().servletContext;
         try {
-            URL bundled = servletContext.getResource(cascDirectory);
+            URL bundled = servletContext.getResource("/WEB-INF");
             if (bundled != null) {
-                File cascDir = new File(bundled.getFile());
+                File cascDir = new File(bundled.getFile(), DEFAULT_JENKINS_YAML_PATH + ".d/");
 
                 boolean hasDir = false;
                 if(!cascDir.exists()) {
@@ -78,6 +83,8 @@ public class CasCBackup extends SaveableListener {
                 } else {
                     LOGGER.severe(String.format("cannot create casc backup directory %s", cascDir));
                 }
+            } else {
+                LOGGER.severe(String.format("cannot found dir %s under the web root", cascDirectory));
             }
         } catch (MalformedURLException e) {
             LOGGER.log(Level.WARNING, String.format("error happen when finding %s", cascDirectory), e);
