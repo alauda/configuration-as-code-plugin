@@ -13,6 +13,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.logging.Level;
@@ -36,13 +37,25 @@ public class PatchConfig {
     public static void patchConfig() {
         LOGGER.fine("start to calculate the patch of casc");
 
-        URL newSystemConfig = findConfig("/" + DEFAULT_JENKINS_YAML_PATH);
+        URL newSystemConfig = null;
+        File newSystemConfigFile = new File(Jenkins.getInstance().getRootDir(), DEFAULT_JENKINS_YAML_PATH);
+        try {
+            if (newSystemConfigFile.isFile()) {
+                newSystemConfig = newSystemConfigFile.toURI().toURL();//findConfig("/" + DEFAULT_JENKINS_YAML_PATH);
+            }
+        } catch (MalformedURLException e) {
+            LOGGER.severe("error when get new system config file, " + e.getMessage());
+        }
+
+        createUserConfigDir();
+
         URL systemConfig = findConfig(cascFile);
         URL userConfig = findConfig(cascDirectory + cascUserConfigFile);
         URL userConfigDir = findConfig(cascDirectory);
 
         if (newSystemConfig == null || userConfigDir == null) {
-            LOGGER.warning("no need to upgrade the configuration of Jenkins");
+            LOGGER.warning("no need to upgrade the configuration of Jenkins, new system config is "
+                + newSystemConfig + ", user config is " + userConfigDir);
             return;
         }
 
@@ -87,6 +100,18 @@ public class PatchConfig {
             }
         } else {
             LOGGER.warning("there's no patch of casc");
+        }
+    }
+
+    private static void createUserConfigDir() {
+        URL webInfo = findConfig("/WEB-INF");
+        if (webInfo != null) {
+            File configDir = new File(webInfo.getFile(), DEFAULT_JENKINS_YAML_PATH + ".d/");
+            if (!configDir.exists()) {
+                boolean result = configDir.mkdirs();
+
+                LOGGER.info("create user config dir " + result);
+            }
         }
     }
 
