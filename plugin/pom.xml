@@ -28,6 +28,7 @@
     <hpi.compatibleSinceVersion>1.28</hpi.compatibleSinceVersion>
     <hpi.pluginChangelogUrl>https://github.com/jenkinsci/configuration-as-code-plugin/releases</hpi.pluginChangelogUrl>
     <hpi.pluginLogoUrl>https://raw.githubusercontent.com/jenkinsci/configuration-as-code-plugin/master/plugin/src/main/webapp/img/logo-head.svg</hpi.pluginLogoUrl>
+    <jackson.version>2.10.2</jackson.version>
   </properties>
 
   <developers>
@@ -83,7 +84,7 @@
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-core</artifactId>
-      <version>2.10.1</version>
+      <version>${jackson.version}</version>
     </dependency>
 
     <dependency>
