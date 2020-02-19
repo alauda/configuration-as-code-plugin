@@ -144,7 +144,7 @@ pipeline {
 			}
 			steps {
 			script {
-					hpiRelease.triggerJenkins(PLUGIN_NAME, "io.alauda.jenkins.plugins;${RELEASE_VERSION}")
+					hpiRelease.triggerJenkins(PLUGIN_NAME, "io.jenkins;${RELEASE_VERSION}")
 				}
 			}
 		}
