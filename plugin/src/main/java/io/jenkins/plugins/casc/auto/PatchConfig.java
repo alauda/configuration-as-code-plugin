@@ -9,6 +9,7 @@ import hudson.init.InitMilestone;
 import hudson.init.Initializer;
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,7 +31,7 @@ public class PatchConfig {
 
     final static  String DEFAULT_JENKINS_YAML_PATH = "jenkins.yaml";
     final static String cascFile = "/WEB-INF/" + DEFAULT_JENKINS_YAML_PATH;
-    final static String cascDirectory = "/WEB-INF/" + DEFAULT_JENKINS_YAML_PATH + ".d/";
+    final static String cascDirectory = "/WEB-INF/" + DEFAULT_JENKINS_YAML_PATH + ".bak/";
     final static  String cascUserConfigFile = "user.yaml";
 
     @Initializer(after= InitMilestone.STARTED, fatal=false)
@@ -47,46 +48,55 @@ public class PatchConfig {
             LOGGER.severe("error when get new system config file, " + e.getMessage());
         }
 
-        createUserConfigDir();
+        URL webInfo = findConfig("/WEB-INF");
+        if (webInfo == null) {
+            LOGGER.severe("cannot found directory WEB-INF, exit without do the config patch");
+            return;
+        }
 
-        URL systemConfig = findConfig(cascFile);
-        URL userConfig = findConfig(cascDirectory + cascUserConfigFile);
-        URL userConfigDir = findConfig(cascDirectory);
+        File userConfigDir = new File(webInfo.getFile(), DEFAULT_JENKINS_YAML_PATH + ".bak/");
+        if (!userConfigDir.exists()) {
+            boolean result = userConfigDir.mkdirs();
 
-        if (newSystemConfig == null || userConfigDir == null) {
-            LOGGER.warning("no need to upgrade the configuration of Jenkins, new system config is "
-                + newSystemConfig + ", user config is " + userConfigDir);
+            LOGGER.info("create user config dir " + result);
+        }
+
+        File systemConfig = new File(webInfo.getFile(), DEFAULT_JENKINS_YAML_PATH);//.toURL();//findConfig(cascFile);
+        File userConfig = new File(userConfigDir, cascUserConfigFile);//findConfig(cascDirectory + cascUserConfigFile);
+
+        if (newSystemConfig == null) {
+            LOGGER.warning("no need to upgrade the configuration of Jenkins due to no new config");
+            return;
+        }
+
+        try {
+            // give systemConfig a real path
+            PatchConfig.copyAndDelSrc(newSystemConfig, systemConfig.toURI().toURL());
+        } catch (IOException e) {
+            LOGGER.log(Level.SEVERE, "error happen when copy the new system config", e);
             return;
         }
 
         JsonNode patch = null;
-        if (systemConfig != null && userConfig != null) {
+        if (userConfig.exists()) {
             ObjectMapper objectMapper = new ObjectMapper();
-            try {
-                JsonNode source = objectMapper.readTree(yamlToJson(systemConfig.openStream()));
-                JsonNode target = objectMapper.readTree(yamlToJson(userConfig.openStream()));
+            try (InputStream systemConfigStream = new FileInputStream(systemConfig);
+                InputStream userConfigStream = new FileInputStream(userConfig)) {
+                JsonNode source = objectMapper.readTree(yamlToJson(systemConfigStream));
+                JsonNode target = objectMapper.readTree(yamlToJson(userConfigStream));
 
                 patch = JsonDiff.asJson(source, target);
             } catch (IOException e) {
                 LOGGER.log(Level.SEVERE, "error happen when calculate the patch", e);
                 return;
             }
-
-            try {
-                // give systemConfig a real path
-                PatchConfig.copyAndDelSrc(newSystemConfig, systemConfig);
-            } catch (IOException e) {
-                LOGGER.log(Level.SEVERE, "error happen when copy the new system config", e);
-                return;
-            }
         }
 
         if (patch != null) {
-            File userYamlFile = new File(userConfigDir.getFile(), "user.yaml");
-            File userJSONFile = new File(userConfigDir.getFile(), "user.json");
+            File userJSONFile = new File(userConfigDir, "user.json");
 
-            try (InputStream newSystemInput = systemConfig.openStream();
-                 OutputStream userFileOutput = new FileOutputStream(userYamlFile);
+            try (InputStream newSystemInput = new FileInputStream(systemConfig);
+                 OutputStream userFileOutput = new FileOutputStream(userConfig);
                  OutputStream patchFileOutput = new FileOutputStream(userJSONFile)){
                 ObjectMapper jsonReader = new ObjectMapper();
                 JsonNode target = JsonPatch.apply(patch, jsonReader.readTree(yamlToJson(newSystemInput)));
@@ -100,18 +110,6 @@ public class PatchConfig {
             }
         } else {
             LOGGER.warning("there's no patch of casc");
-        }
-    }
-
-    private static void createUserConfigDir() {
-        URL webInfo = findConfig("/WEB-INF");
-        if (webInfo != null) {
-            File configDir = new File(webInfo.getFile(), DEFAULT_JENKINS_YAML_PATH + ".d/");
-            if (!configDir.exists()) {
-                boolean result = configDir.mkdirs();
-
-                LOGGER.info("create user config dir " + result);
-            }
         }
     }
 

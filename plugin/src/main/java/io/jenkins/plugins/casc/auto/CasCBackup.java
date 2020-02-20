@@ -2,6 +2,7 @@ package io.jenkins.plugins.casc.auto;
 
 import hudson.Extension;
 import hudson.XmlFile;
+import hudson.init.InitMilestone;
 import hudson.model.Saveable;
 import hudson.model.listeners.SaveableListener;
 import io.jenkins.plugins.casc.ConfigurationAsCode;
@@ -20,24 +21,25 @@ import javax.inject.Inject;
 import javax.servlet.ServletContext;
 import jenkins.model.GlobalConfiguration;
 import jenkins.model.Jenkins;
-//import io.jenkins.plugins.casc.ConfigurationContext;
 
 @Extension(ordinal = 100)
 public class CasCBackup extends SaveableListener {
     private static final Logger LOGGER = Logger.getLogger(CasCBackup.class.getName());
 
     private static final String DEFAULT_JENKINS_YAML_PATH = "jenkins.yaml";
-    private static final String cascDirectory = "/WEB-INF/" + DEFAULT_JENKINS_YAML_PATH + ".d/";
+    private static final String cascDirectory = "/WEB-INF/" + DEFAULT_JENKINS_YAML_PATH + ".bak/";
 
     @Inject
     private DefaultConfiguratorRegistry registry;
 
     @Override
     public void onChange(Saveable o, XmlFile file) {
+        InitMilestone initLevel = Jenkins.getInstance().getInitLevel();
+        if (initLevel != InitMilestone.COMPLETED) {
+            return;
+        }
+
         ConfigurationContext context = new ConfigurationContext(registry);
-//        if (!context.isEnableBackup()) {
-//            return;
-//        }
 
         LOGGER.warning("context.isEnableBackup()" + context.isEnableBackup());
 
@@ -60,7 +62,7 @@ public class CasCBackup extends SaveableListener {
         try {
             URL bundled = servletContext.getResource("/WEB-INF");
             if (bundled != null) {
-                File cascDir = new File(bundled.getFile(), DEFAULT_JENKINS_YAML_PATH + ".d/");
+                File cascDir = new File(bundled.getFile(), DEFAULT_JENKINS_YAML_PATH + ".bak/");
 
                 boolean hasDir = false;
                 if(!cascDir.exists()) {
