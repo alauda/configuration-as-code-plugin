@@ -30,8 +30,7 @@ public class PatchConfig {
     private static final Logger LOGGER = Logger.getLogger(CasCBackup.class.getName());
 
     final static  String DEFAULT_JENKINS_YAML_PATH = "jenkins.yaml";
-    final static String cascFile = "/WEB-INF/" + DEFAULT_JENKINS_YAML_PATH;
-    final static String cascDirectory = "/WEB-INF/" + DEFAULT_JENKINS_YAML_PATH + ".bak/";
+    final static String cascDirectory = DEFAULT_JENKINS_YAML_PATH + ".bak/";
     final static  String cascUserConfigFile = "user.yaml";
 
     @Initializer(after= InitMilestone.STARTED, fatal=false)
@@ -42,7 +41,7 @@ public class PatchConfig {
         File newSystemConfigFile = new File(Jenkins.getInstance().getRootDir(), DEFAULT_JENKINS_YAML_PATH);
         try {
             if (newSystemConfigFile.isFile()) {
-                newSystemConfig = newSystemConfigFile.toURI().toURL();//findConfig("/" + DEFAULT_JENKINS_YAML_PATH);
+                newSystemConfig = newSystemConfigFile.toURI().toURL();
             }
         } catch (MalformedURLException e) {
             LOGGER.severe("error when get new system config file, " + e.getMessage());
@@ -54,15 +53,15 @@ public class PatchConfig {
             return;
         }
 
-        File userConfigDir = new File(webInfo.getFile(), DEFAULT_JENKINS_YAML_PATH + ".bak/");
+        File userConfigDir = new File(webInfo.getFile(), cascDirectory);
         if (!userConfigDir.exists()) {
             boolean result = userConfigDir.mkdirs();
 
             LOGGER.info("create user config dir " + result);
         }
 
-        File systemConfig = new File(webInfo.getFile(), DEFAULT_JENKINS_YAML_PATH);//.toURL();//findConfig(cascFile);
-        File userConfig = new File(userConfigDir, cascUserConfigFile);//findConfig(cascDirectory + cascUserConfigFile);
+        File systemConfig = new File(webInfo.getFile(), DEFAULT_JENKINS_YAML_PATH);
+        File userConfig = new File(userConfigDir, cascUserConfigFile);
 
         if (newSystemConfig == null) {
             LOGGER.warning("no need to upgrade the configuration of Jenkins due to no new config");

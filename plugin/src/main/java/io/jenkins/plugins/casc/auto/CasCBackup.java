@@ -24,7 +24,7 @@ public class CasCBackup extends SaveableListener {
     private static final Logger LOGGER = Logger.getLogger(CasCBackup.class.getName());
 
     private static final String DEFAULT_JENKINS_YAML_PATH = "jenkins.yaml";
-    private static final String cascDirectory = "/WEB-INF/" + DEFAULT_JENKINS_YAML_PATH + ".bak/";
+    private static final String cascDirectory = "/WEB-INF/" + DEFAULT_JENKINS_YAML_PATH + ".d/";
 
     private static final boolean enableBackup;
 
@@ -64,7 +64,7 @@ public class CasCBackup extends SaveableListener {
         try {
             URL bundled = servletContext.getResource("/WEB-INF");
             if (bundled != null) {
-                File cascDir = new File(bundled.getFile(), DEFAULT_JENKINS_YAML_PATH + ".bak/");
+                File cascDir = new File(bundled.getFile(), DEFAULT_JENKINS_YAML_PATH + ".d/");
 
                 boolean hasDir = false;
                 if(!cascDir.exists()) {
