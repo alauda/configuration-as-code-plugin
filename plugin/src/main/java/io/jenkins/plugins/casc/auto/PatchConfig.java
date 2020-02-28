@@ -63,63 +63,26 @@ public class PatchConfig {
         File userConfig = new File(userConfigDir, cascUserConfigFile);
 
         if (newSystemConfig == null) {
-            LOGGER.warning("no need to upgrade the configuration of Jenkins due to no new config");
-            return;
-        }
-
-        try {
-            // give systemConfig a real path
-            PatchConfig.copyAndDelSrc(newSystemConfig, systemConfig.toURI().toURL());
-        } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "error happen when copy the new system config", e);
-            return;
+            LOGGER.info("no need to upgrade the configuration of Jenkins due to no new config");
+        } else {
+            try {
+                // give systemConfig a real path
+                PatchConfig.copyAndDelSrc(newSystemConfig, systemConfig.toURI().toURL());
+            } catch (IOException e) {
+                LOGGER.log(Level.SEVERE, "error happen when copy the new system config", e);
+                return;
+            }
         }
 
         YamlMapper mapper = new YamlMapper();
         try (OutputStream userFileOutput = new FileOutputStream(userConfig)) {
-            JsonNode merged = merge(
-                mapper.read(userConfig),
-                mapper.read(systemConfig)
-            );
-            mapper.write(new YAMLFactory().createGenerator(userFileOutput), merged);
+            JsonNode merged = merge(mapper.read(userConfig), mapper.read(systemConfig));
+            if(!merged.isNull()) {
+                mapper.write(new YAMLFactory().createGenerator(userFileOutput), merged);
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
-
-//        JsonNode patch = null;
-//        if (userConfig.exists()) {
-//            ObjectMapper objectMapper = new ObjectMapper();
-//            try (InputStream systemConfigStream = new FileInputStream(systemConfig);
-//                InputStream userConfigStream = new FileInputStream(userConfig)) {
-//                JsonNode source = objectMapper.readTree(yamlToJson(systemConfigStream));
-//                JsonNode target = objectMapper.readTree(yamlToJson(userConfigStream));
-//
-//                patch = JsonDiff.asJson(source, target);
-//            } catch (IOException e) {
-//                LOGGER.log(Level.SEVERE, "error happen when calculate the patch", e);
-//                return;
-//            }
-//        }
-//
-//        if (patch != null) {
-//            File userJSONFile = new File(userConfigDir, "user.json");
-//
-//            try (InputStream newSystemInput = new FileInputStream(systemConfig);
-//                 OutputStream userFileOutput = new FileOutputStream(userConfig);
-//                 OutputStream patchFileOutput = new FileOutputStream(userJSONFile)){
-//                ObjectMapper jsonReader = new ObjectMapper();
-//                JsonNode target = JsonPatch.apply(patch, jsonReader.readTree(yamlToJson(newSystemInput)));
-//
-//                String userYaml = jsonToYaml(new ByteArrayInputStream(target.toString().getBytes(StandardCharsets.UTF_8)));
-//
-//                userFileOutput.write(userYaml.getBytes(StandardCharsets.UTF_8));
-//                patchFileOutput.write(patch.toString().getBytes(StandardCharsets.UTF_8));
-//            } catch (IOException e) {
-//                LOGGER.log(Level.SEVERE, "error happen when copy the new system config", e);
-//            }
-//        } else {
-//            LOGGER.warning("there's no patch of casc");
-//        }
     }
 
     private static URL findConfig(String path) {
@@ -148,25 +111,10 @@ public class PatchConfig {
         }
     }
 
-    private static String jsonToYaml(InputStream input) throws IOException {
-        ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
-        ObjectMapper jsonReader = new ObjectMapper();
-
-        Object obj = jsonReader.readValue(input, Object.class);
-
-        return yamlReader.writeValueAsString(obj);
-    }
-
-    private  static String yamlToJson(InputStream input) throws IOException {
-        ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
-        ObjectMapper jsonReader = new ObjectMapper();
-
-        Object obj = yamlReader.readValue(input, Object.class);
-
-        return jsonReader.writeValueAsString(obj);
-    }
-
     private static JsonNode merge(JsonNode mainNode, JsonNode updateNode) {
+        if (mainNode == null || updateNode == null) {
+            return mainNode;
+        }
         Iterator<String> fieldNames = updateNode.fieldNames();
 
         while (fieldNames.hasNext()) {

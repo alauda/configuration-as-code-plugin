@@ -31,7 +31,7 @@ public class CasCBackup extends SaveableListener {
     static {
         enableBackup = "true".equals(System.getenv("CASC_AUTO_BACKUP"));
 
-        LOGGER.warning("CasCBackup is " + (enableBackup ? "enabled" : "disabled"));
+        LOGGER.info("CasCBackup is " + (enableBackup ? "enabled" : "disabled"));
     }
 
     @Override
