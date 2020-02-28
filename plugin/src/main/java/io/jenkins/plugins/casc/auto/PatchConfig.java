@@ -76,7 +76,7 @@ public class PatchConfig {
         YamlMapper mapper = new YamlMapper();
         try (OutputStream userFileOutput = new FileOutputStream(userConfig)) {
             JsonNode merged = merge(mapper.read(userConfig), mapper.read(systemConfig));
-            if(!merged.isNull()) {
+            if(merged != null && !merged.isNull()) {
                 mapper.write(new YAMLFactory().createGenerator(userFileOutput), merged);
             }
         } catch (IOException e) {
