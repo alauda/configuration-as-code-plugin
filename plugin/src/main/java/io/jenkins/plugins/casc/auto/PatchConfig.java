@@ -19,7 +19,6 @@ import java.util.Iterator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.servlet.ServletContext;
-import jdk.javadoc.internal.doclets.toolkit.util.DocFinder.Output;
 import jenkins.model.Jenkins;
 import org.apache.commons.io.IOUtils;
 
