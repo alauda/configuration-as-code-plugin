@@ -19,7 +19,7 @@ import javax.servlet.ServletContext;
 import jenkins.model.GlobalConfiguration;
 import jenkins.model.Jenkins;
 
-@Extension(ordinal = 100)
+@Extension(ordinal = Integer.MIN_VALUE)
 public class CasCBackup extends SaveableListener {
     private static final Logger LOGGER = Logger.getLogger(CasCBackup.class.getName());
 

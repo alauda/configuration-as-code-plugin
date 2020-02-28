@@ -71,13 +71,17 @@ public class PatchConfig {
                 LOGGER.log(Level.SEVERE, "error happen when copy the new system config", e);
                 return;
             }
+
+            LOGGER.info("found new config");
         }
 
         YamlMapper mapper = new YamlMapper();
-        try (OutputStream userFileOutput = new FileOutputStream(userConfig)) {
+        try {
             JsonNode merged = merge(mapper.read(userConfig), mapper.read(systemConfig));
-            if(!merged.isNull()) {
-                mapper.write(new YAMLFactory().createGenerator(userFileOutput), merged);
+            if(merged != null && !merged.isNull()) {
+                try (OutputStream userFileOutput = new FileOutputStream(userConfig)) {
+                    mapper.write(new YAMLFactory().createGenerator(userFileOutput), merged);
+                }
             }
         } catch (IOException e) {
             e.printStackTrace();
