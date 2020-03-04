@@ -75,6 +75,11 @@ public class PatchConfig {
             LOGGER.info("found new config");
         }
 
+        if (!userConfig.isFile() || !userConfig.exists()) {
+            LOGGER.log(Level.INFO, "user config yaml file does not exists, " + userConfig.getAbsolutePath());
+            return;
+        }
+
         YamlMapper mapper = new YamlMapper();
         try {
             JsonNode merged = merge(mapper.read(userConfig), mapper.read(systemConfig));
