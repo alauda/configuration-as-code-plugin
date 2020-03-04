@@ -13,6 +13,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.servlet.ServletContext;
@@ -27,9 +29,12 @@ public class CasCBackup extends SaveableListener {
     private static final String cascDirectory = "/WEB-INF/" + DEFAULT_JENKINS_YAML_PATH + ".d/";
 
     private static final boolean enableBackup;
+    private static final BlockingQueue<Saveable> queue;
 
     static {
         enableBackup = "true".equals(System.getenv("CASC_AUTO_BACKUP"));
+        queue = new ArrayBlockingQueue<Saveable>(200);
+        new BackupThread().start();
 
         LOGGER.info("CasCBackup is " + (enableBackup ? "enabled" : "disabled"));
     }
@@ -50,48 +55,76 @@ public class CasCBackup extends SaveableListener {
             return;
         }
 
-        LOGGER.info("start to backup casc yaml file");
-
-        ByteArrayOutputStream buf = new ByteArrayOutputStream();
         try {
-            ConfigurationAsCode.get().export(buf);
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "error happen when exporting the whole config into a YAML", e);
-            return;
+            queue.put(o);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    static class BackupThread extends Thread {
+
+        @Override
+        public void run() {
+            while(!Jenkins.getInstance().isTerminating()) {
+                try {
+                    queue.take(); // don't use the item here, just want to delay the following action
+                    if (queue.size() > 0) {
+                        sleep(3000);
+                        continue;
+                    }
+
+                    backup();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
         }
 
-        final ServletContext servletContext = Jenkins.getInstance().servletContext;
-        try {
-            URL bundled = servletContext.getResource("/WEB-INF");
-            if (bundled != null) {
-                File cascDir = new File(bundled.getFile(), DEFAULT_JENKINS_YAML_PATH + ".d/");
+        private void backup() {
+            LOGGER.info("start to backup casc yaml file");
 
-                boolean hasDir = false;
-                if(!cascDir.exists()) {
-                    hasDir = cascDir.mkdirs();
-                } else if (cascDir.isFile()) {
-                    LOGGER.severe(String.format("%s is a regular file", cascDir));
-                } else {
-                    hasDir = true;
-                }
+            ByteArrayOutputStream buf = new ByteArrayOutputStream();
+            try {
+                ConfigurationAsCode.get().export(buf);
+            } catch (Exception e) {
+                LOGGER.log(Level.WARNING, "error happen when exporting the whole config into a YAML", e);
+                return;
+            }
 
-                if(hasDir) {
-                    File backupFile = new File(cascDir, "user.yaml");
-                    try (OutputStream writer = new FileOutputStream(backupFile)) {
-                        writer.write(buf.toByteArray());
+            final ServletContext servletContext = Jenkins.getInstance().servletContext;
+            try {
+                URL bundled = servletContext.getResource("/WEB-INF");
+                if (bundled != null) {
+                    File cascDir = new File(bundled.getFile(), DEFAULT_JENKINS_YAML_PATH + ".d/");
 
-                        LOGGER.fine(String.format("backup file was saved, %s", backupFile.getAbsolutePath()));
-                    } catch (IOException e) {
-                        LOGGER.log(Level.WARNING, String.format("error happen when saving %s", backupFile.getAbsolutePath()), e);
+                    boolean hasDir = false;
+                    if(!cascDir.exists()) {
+                        hasDir = cascDir.mkdirs();
+                    } else if (cascDir.isFile()) {
+                        LOGGER.severe(String.format("%s is a regular file", cascDir));
+                    } else {
+                        hasDir = true;
+                    }
+
+                    if(hasDir) {
+                        File backupFile = new File(cascDir, "user.yaml");
+                        try (OutputStream writer = new FileOutputStream(backupFile)) {
+                            writer.write(buf.toByteArray());
+
+                            LOGGER.fine(String.format("backup file was saved, %s", backupFile.getAbsolutePath()));
+                        } catch (IOException e) {
+                            LOGGER.log(Level.WARNING, String.format("error happen when saving %s", backupFile.getAbsolutePath()), e);
+                        }
+                    } else {
+                        LOGGER.severe(String.format("cannot create casc backup directory %s", cascDir));
                     }
                 } else {
-                    LOGGER.severe(String.format("cannot create casc backup directory %s", cascDir));
+                    LOGGER.severe(String.format("cannot found dir %s under the web root", cascDirectory));
                 }
-            } else {
-                LOGGER.severe(String.format("cannot found dir %s under the web root", cascDirectory));
+            } catch (MalformedURLException e) {
+                LOGGER.log(Level.WARNING, String.format("error happen when finding %s", cascDirectory), e);
             }
-        } catch (MalformedURLException e) {
-            LOGGER.log(Level.WARNING, String.format("error happen when finding %s", cascDirectory), e);
         }
     }
 }
