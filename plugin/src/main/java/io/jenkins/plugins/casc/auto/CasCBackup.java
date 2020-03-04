@@ -125,6 +125,8 @@ public class CasCBackup extends SaveableListener {
             } catch (MalformedURLException e) {
                 LOGGER.log(Level.WARNING, String.format("error happen when finding %s", cascDirectory), e);
             }
+
+            LOGGER.info("done with the backup casc yaml file");
         }
     }
 }
