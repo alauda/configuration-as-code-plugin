@@ -4,6 +4,7 @@ import hudson.Extension;
 import hudson.XmlFile;
 import hudson.init.InitMilestone;
 import hudson.model.Saveable;
+import hudson.model.listeners.ItemListener;
 import hudson.model.listeners.SaveableListener;
 import io.jenkins.plugins.casc.ConfigurationAsCode;
 import java.io.ByteArrayOutputStream;
@@ -34,7 +35,7 @@ public class CasCBackup extends SaveableListener {
     static {
         enableBackup = "true".equals(System.getenv("CASC_AUTO_BACKUP"));
         queue = new ArrayBlockingQueue<Saveable>(200);
-        new BackupThread().start();
+        new Thread(new BackupThread(), "CASC backup thread").start();
 
         LOGGER.info("CasCBackup is " + (enableBackup ? "enabled" : "disabled"));
     }
@@ -62,7 +63,8 @@ public class CasCBackup extends SaveableListener {
         }
     }
 
-    static class BackupThread extends Thread {
+    @Extension
+    public static class BackupThread extends ItemListener implements Runnable {
 
         @Override
         public void run() {
@@ -70,7 +72,7 @@ public class CasCBackup extends SaveableListener {
                 try {
                     queue.take(); // don't use the item here, just want to delay the following action
                     if (queue.size() > 0) {
-                        sleep(3000);
+                        Thread.sleep(500);
                         continue;
                     }
 
@@ -78,6 +80,14 @@ public class CasCBackup extends SaveableListener {
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
+            }
+        }
+
+        @Override
+        public void onBeforeShutdown() {
+            // make sure the queue is empty before Jenkins shutdown
+            if (queue.size() > 0) {
+                backup();
             }
         }
 
