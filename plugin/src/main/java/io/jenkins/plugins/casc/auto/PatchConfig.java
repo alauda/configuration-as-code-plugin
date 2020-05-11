@@ -8,11 +8,12 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import hudson.init.InitMilestone;
 import hudson.init.Initializer;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Iterator;
 import java.util.logging.Level;
@@ -28,69 +29,61 @@ public class PatchConfig {
     private static final Logger LOGGER = Logger.getLogger(CasCBackup.class.getName());
 
     final static  String DEFAULT_JENKINS_YAML_PATH = "jenkins.yaml";
-    final static String cascDirectory = DEFAULT_JENKINS_YAML_PATH + ".d/";
-    final static  String cascUserConfigFile = "user.yaml";
 
-    @Initializer(after= InitMilestone.STARTED, fatal=false)
-    public static void patchConfig() {
-        LOGGER.fine("start to calculate the patch of casc");
-
-        URL newSystemConfig = null;
-        File newSystemConfigFile = new File(Jenkins.getInstance().getRootDir(), DEFAULT_JENKINS_YAML_PATH);
-        try {
-            if (newSystemConfigFile.isFile()) {
-                newSystemConfig = newSystemConfigFile.toURI().toURL();
-            }
-        } catch (MalformedURLException e) {
-            LOGGER.severe("error when get new system config file, " + e.getMessage());
+    public static void patchConfig(File systemConfig, File userConfig, File targetConfig) {
+        File targetDir = targetConfig.getParentFile();
+        if(!targetDir.isDirectory()) {
+            LOGGER.info("create target dir" + targetDir.getAbsolutePath() + " result is " + targetDir.mkdirs());
         }
 
-        URL webInfo = findConfig("/WEB-INF");
-        if (webInfo == null) {
-            LOGGER.severe("cannot found directory WEB-INF, exit without do the config patch");
-            return;
-        }
-
-        File userConfigDir = new File(webInfo.getFile(), cascDirectory);
-        if (!userConfigDir.exists()) {
-            boolean result = userConfigDir.mkdirs();
-
-            LOGGER.info("create user config dir " + result);
-        }
-
-        File systemConfig = new File(webInfo.getFile(), DEFAULT_JENKINS_YAML_PATH);
-        File userConfig = new File(userConfigDir, cascUserConfigFile);
-
-        if (newSystemConfig == null) {
-            LOGGER.info("no need to upgrade the configuration of Jenkins due to no new config");
-        } else {
-            try {
-                // give systemConfig a real path
-                PatchConfig.copyAndDelSrc(newSystemConfig, systemConfig.toURI().toURL());
-            } catch (IOException e) {
-                LOGGER.log(Level.SEVERE, "error happen when copy the new system config", e);
+        if (!systemConfig.exists()) {
+            try (InputStream userInput = new FileInputStream(userConfig);
+                OutputStream targetOut = new FileOutputStream(targetConfig)) {
+                IOUtils.copy(userInput, targetOut);
                 return;
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
             }
-
-            LOGGER.info("found new config");
         }
 
-        if (!userConfig.isFile() || !userConfig.exists()) {
-            LOGGER.log(Level.INFO, "user config yaml file does not exists, " + userConfig.getAbsolutePath());
-            return;
+        if (!userConfig.exists()) {
+            try (InputStream sysInput = new FileInputStream(systemConfig);
+                OutputStream targetOut = new FileOutputStream(targetConfig)) {
+                IOUtils.copy(sysInput, targetOut);
+                return;
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
 
         YamlMapper mapper = new YamlMapper();
         try {
             JsonNode merged = merge(mapper.read(userConfig), mapper.read(systemConfig));
             if(merged != null && !merged.isNull()) {
-                try (OutputStream userFileOutput = new FileOutputStream(userConfig)) {
+                try (OutputStream userFileOutput = new FileOutputStream(targetConfig)) {
                     mapper.write(new YAMLFactory().createGenerator(userFileOutput), merged);
                 }
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+
+    private static final String DEFAULT_JENKINS_YAML_FILE = "jenkins.yaml";
+    private static final String JENKINS_BACKUP_YAML_FILE = "jenkins.backup.yaml";
+
+    @Initializer(after= InitMilestone.STARTED, fatal=false)
+    @Deprecated
+    public static void patchConfig() {
+        File rootDir = Jenkins.getInstance().getRootDir();
+        PatchConfig.patchConfig(new File(rootDir, DEFAULT_JENKINS_YAML_FILE),
+            new File(rootDir, JENKINS_BACKUP_YAML_FILE),
+            new File(rootDir, "casc_config_auto/" + DEFAULT_JENKINS_YAML_FILE));
     }
 
     private static URL findConfig(String path) {
