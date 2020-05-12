@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import hudson.ExtensionList;
 import hudson.init.InitMilestone;
 import hudson.init.Initializer;
 import java.io.File;
@@ -19,6 +20,7 @@ import java.util.Iterator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.servlet.ServletContext;
+import jenkins.model.GlobalConfiguration;
 import jenkins.model.Jenkins;
 import org.apache.commons.io.IOUtils;
 
@@ -39,6 +41,13 @@ public class PatchConfig {
         if (!systemConfig.exists() && !userConfig.exists()) {
             LOGGER.warning("cannot found system config " + systemConfig.getAbsolutePath() +
                 "; and user config " + userConfig.getAbsolutePath());
+            ExtensionList<GlobalConfiguration> configs = GlobalConfiguration.all();
+            if (configs != null && configs.size() > 0) {
+                // make sure we can always have a backup config file
+                configs.get(0).save();
+            } else {
+                LOGGER.severe("should not get here, there's no any GlobalConfiguration");
+            }
             return;
         }
 
