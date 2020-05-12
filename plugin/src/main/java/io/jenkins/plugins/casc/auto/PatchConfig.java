@@ -36,28 +36,34 @@ public class PatchConfig {
             LOGGER.info("create target dir" + targetDir.getAbsolutePath() + " result is " + targetDir.mkdirs());
         }
 
-        if (!systemConfig.exists()) {
+        if (!systemConfig.exists() && !userConfig.exists()) {
+            LOGGER.warning("cannot found system config " + systemConfig.getAbsolutePath() +
+                "; and user config " + userConfig.getAbsolutePath());
+            return;
+        }
+
+        if (!systemConfig.exists() && userConfig.exists()) {
             try (InputStream userInput = new FileInputStream(userConfig);
                 OutputStream targetOut = new FileOutputStream(targetConfig)) {
                 IOUtils.copy(userInput, targetOut);
-                return;
             } catch (FileNotFoundException e) {
                 e.printStackTrace();
             } catch (IOException e) {
                 e.printStackTrace();
             }
+            return;
         }
 
-        if (!userConfig.exists()) {
+        if (!userConfig.exists() && systemConfig.exists()) {
             try (InputStream sysInput = new FileInputStream(systemConfig);
                 OutputStream targetOut = new FileOutputStream(targetConfig)) {
                 IOUtils.copy(sysInput, targetOut);
-                return;
             } catch (FileNotFoundException e) {
                 e.printStackTrace();
             } catch (IOException e) {
                 e.printStackTrace();
             }
+            return;
         }
 
         YamlMapper mapper = new YamlMapper();
