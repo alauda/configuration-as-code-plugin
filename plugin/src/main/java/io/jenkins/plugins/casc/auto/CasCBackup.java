@@ -43,7 +43,7 @@ public class CasCBackup extends SaveableListener {
         }
 
         InitMilestone initLevel = Jenkins.getInstance().getInitLevel();
-        if (initLevel != InitMilestone.COMPLETED) {
+        if (initLevel != InitMilestone.COMPLETED && initLevel != InitMilestone.JOB_LOADED) {
             return;
         }
 

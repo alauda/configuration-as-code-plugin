@@ -30,8 +30,6 @@ import org.apache.commons.io.IOUtils;
 public class PatchConfig {
     private static final Logger LOGGER = Logger.getLogger(CasCBackup.class.getName());
 
-    final static  String DEFAULT_JENKINS_YAML_PATH = "jenkins.yaml";
-
     public static void patchConfig(File systemConfig, File userConfig, File targetConfig) {
         File targetDir = targetConfig.getParentFile();
         if(!targetDir.isDirectory()) {
@@ -41,13 +39,6 @@ public class PatchConfig {
         if (!systemConfig.exists() && !userConfig.exists()) {
             LOGGER.warning("cannot found system config " + systemConfig.getAbsolutePath() +
                 "; and user config " + userConfig.getAbsolutePath());
-            ExtensionList<GlobalConfiguration> configs = GlobalConfiguration.all();
-            if (configs != null && configs.size() > 0) {
-                // make sure we can always have a backup config file
-                configs.get(0).save();
-            } else {
-                LOGGER.severe("should not get here, there's no any GlobalConfiguration");
-            }
             return;
         }
 
@@ -92,8 +83,20 @@ public class PatchConfig {
     private static final String DEFAULT_JENKINS_YAML_FILE = "jenkins.yaml";
     private static final String JENKINS_BACKUP_YAML_FILE = "jenkins.backup.yaml";
 
+    @Initializer(after= InitMilestone.JOB_LOADED, fatal=false)
+    public static void triggerConfigChange() {
+        // make sure we can always have a backup config file
+        LOGGER.info("triggerConfigChange");
+        ExtensionList<GlobalConfiguration> configs = GlobalConfiguration.all();
+        if (configs != null && configs.size() > 0) {
+            configs.get(0).save();
+            LOGGER.info("triggerConfigChange done");
+        } else {
+            LOGGER.severe("should not get here, there's no any GlobalConfiguration");
+        }
+    }
+
     @Initializer(after= InitMilestone.STARTED, fatal=false)
-    @Deprecated
     public static void patchConfig() {
         File rootDir = Jenkins.getInstance().getRootDir();
         PatchConfig.patchConfig(new File(rootDir, DEFAULT_JENKINS_YAML_FILE),
