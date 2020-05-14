@@ -1,5 +1,5 @@
 // https://jenkins.io/doc/book/pipeline/syntax/
-@Library('alauda-cicd') _
+@Library('alauda-cicd-zxj-debug') _
 
 // global variables for pipeline
 def GIT_BRANCH
@@ -56,7 +56,9 @@ pipeline {
 				script {
 					DEBUG = params.DEBUG
 					// checkout code
+					echo 'start to checkout code'
 					def scmVars = checkout scm
+					echo 'done with code clone'
 					// extract git information
 					env.GIT_COMMIT = scmVars.GIT_COMMIT
 					env.GIT_BRANCH = scmVars.GIT_BRANCH
