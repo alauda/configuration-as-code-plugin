@@ -56,7 +56,9 @@ pipeline {
 				script {
 					DEBUG = params.DEBUG
 					// checkout code
+					echo 'start to checkout code'
 					def scmVars = checkout scm
+					echo 'done with code clone'
 					// extract git information
 					env.GIT_COMMIT = scmVars.GIT_COMMIT
 					env.GIT_BRANCH = scmVars.GIT_BRANCH
@@ -107,10 +109,6 @@ pipeline {
 			steps{
 				script{
 					hpiRelease.deploy("-Dmaven.test.skip=true -Dmaven.site.skip=true -Dmaven.javadoc.skip=true")
-					if(hpiRelease.deployToUC){
-						hpiRelease.triggerBackendIndexing(RELEASE_VERSION)
-						hpiRelease.waitUC(PLUGIN_NAME, RELEASE_VERSION, 15)
-					}
 				}
 			}
 		}
@@ -150,23 +148,13 @@ pipeline {
 		}
 	}
 
-	// (optional)
-	// happens at the end of the pipeline
 	post {
-		// 成功
-		success {
-			echo "Horay!"
+		always {
+			junit allowEmptyResults: true, testResults: "**/target/surefire-reports/**/*.xml"
 			script {
-				deploy.notificationSuccess(REPOSITORY, DINGDING_BOT, "流水线完成了", RELEASE_VERSION)
+				deploy.alaudaNotification([:])
 			}
 		}
-		// 失败
-		failure {
-			script{
-			 deploy.notificationFailed(REPOSITORY, DINGDING_BOT, "流水线失败了", RELEASE_VERSION)
-			}
-		}
-		always { junit allowEmptyResults: true, testResults: "**/target/surefire-reports/**/*.xml" }
 	}
 }
 

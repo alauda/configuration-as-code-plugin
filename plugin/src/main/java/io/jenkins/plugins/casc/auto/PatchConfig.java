@@ -1,25 +1,26 @@
 package io.jenkins.plugins.casc.auto;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.flipkart.zjsonpatch.JsonDiff;
-import com.flipkart.zjsonpatch.JsonPatch;
+import hudson.ExtensionList;
 import hudson.init.InitMilestone;
 import hudson.init.Initializer;
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.servlet.ServletContext;
+import jenkins.model.GlobalConfiguration;
 import jenkins.model.Jenkins;
 import org.apache.commons.io.IOUtils;
 
@@ -29,88 +30,78 @@ import org.apache.commons.io.IOUtils;
 public class PatchConfig {
     private static final Logger LOGGER = Logger.getLogger(CasCBackup.class.getName());
 
-    final static  String DEFAULT_JENKINS_YAML_PATH = "jenkins.yaml";
-    final static String cascFile = "/WEB-INF/" + DEFAULT_JENKINS_YAML_PATH;
-    final static String cascDirectory = "/WEB-INF/" + DEFAULT_JENKINS_YAML_PATH + ".bak/";
-    final static  String cascUserConfigFile = "user.yaml";
+    public static void patchConfig(File systemConfig, File userConfig, File targetConfig) {
+        File targetDir = targetConfig.getParentFile();
+        if(!targetDir.isDirectory()) {
+            LOGGER.info("create target dir" + targetDir.getAbsolutePath() + " result is " + targetDir.mkdirs());
+        }
+
+        if (!systemConfig.exists() && !userConfig.exists()) {
+            LOGGER.warning("cannot found system config " + systemConfig.getAbsolutePath() +
+                "; and user config " + userConfig.getAbsolutePath());
+            return;
+        }
+
+        if (!systemConfig.exists() && userConfig.exists()) {
+            try (InputStream userInput = new FileInputStream(userConfig);
+                OutputStream targetOut = new FileOutputStream(targetConfig)) {
+                IOUtils.copy(userInput, targetOut);
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return;
+        }
+
+        if (!userConfig.exists() && systemConfig.exists()) {
+            try (InputStream sysInput = new FileInputStream(systemConfig);
+                OutputStream targetOut = new FileOutputStream(targetConfig)) {
+                IOUtils.copy(sysInput, targetOut);
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return;
+        }
+
+        YamlMapper mapper = new YamlMapper();
+        try {
+            JsonNode merged = merge(mapper.read(userConfig), mapper.read(systemConfig));
+            if(merged != null && !merged.isNull()) {
+                try (OutputStream userFileOutput = new FileOutputStream(targetConfig)) {
+                    mapper.write(new YAMLFactory().createGenerator(userFileOutput), merged);
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    private static final String DEFAULT_JENKINS_YAML_FILE = "jenkins.yaml";
+    private static final String JENKINS_BACKUP_YAML_FILE = "jenkins.backup.yaml";
+
+    @Initializer(after= InitMilestone.JOB_LOADED, fatal=false)
+    public static void triggerConfigChange() {
+        // make sure we can always have a backup config file
+        LOGGER.info("triggerConfigChange");
+        ExtensionList<GlobalConfiguration> configs = GlobalConfiguration.all();
+        if (configs != null && configs.size() > 0) {
+            configs.get(0).save();
+            LOGGER.info("triggerConfigChange done");
+        } else {
+            LOGGER.severe("should not get here, there's no any GlobalConfiguration");
+        }
+    }
 
     @Initializer(after= InitMilestone.STARTED, fatal=false)
     public static void patchConfig() {
-        LOGGER.fine("start to calculate the patch of casc");
-
-        URL newSystemConfig = null;
-        File newSystemConfigFile = new File(Jenkins.getInstance().getRootDir(), DEFAULT_JENKINS_YAML_PATH);
-        try {
-            if (newSystemConfigFile.isFile()) {
-                newSystemConfig = newSystemConfigFile.toURI().toURL();//findConfig("/" + DEFAULT_JENKINS_YAML_PATH);
-            }
-        } catch (MalformedURLException e) {
-            LOGGER.severe("error when get new system config file, " + e.getMessage());
-        }
-
-        URL webInfo = findConfig("/WEB-INF");
-        if (webInfo == null) {
-            LOGGER.severe("cannot found directory WEB-INF, exit without do the config patch");
-            return;
-        }
-
-        File userConfigDir = new File(webInfo.getFile(), DEFAULT_JENKINS_YAML_PATH + ".bak/");
-        if (!userConfigDir.exists()) {
-            boolean result = userConfigDir.mkdirs();
-
-            LOGGER.info("create user config dir " + result);
-        }
-
-        File systemConfig = new File(webInfo.getFile(), DEFAULT_JENKINS_YAML_PATH);//.toURL();//findConfig(cascFile);
-        File userConfig = new File(userConfigDir, cascUserConfigFile);//findConfig(cascDirectory + cascUserConfigFile);
-
-        if (newSystemConfig == null) {
-            LOGGER.warning("no need to upgrade the configuration of Jenkins due to no new config");
-            return;
-        }
-
-        try {
-            // give systemConfig a real path
-            PatchConfig.copyAndDelSrc(newSystemConfig, systemConfig.toURI().toURL());
-        } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "error happen when copy the new system config", e);
-            return;
-        }
-
-        JsonNode patch = null;
-        if (userConfig.exists()) {
-            ObjectMapper objectMapper = new ObjectMapper();
-            try (InputStream systemConfigStream = new FileInputStream(systemConfig);
-                InputStream userConfigStream = new FileInputStream(userConfig)) {
-                JsonNode source = objectMapper.readTree(yamlToJson(systemConfigStream));
-                JsonNode target = objectMapper.readTree(yamlToJson(userConfigStream));
-
-                patch = JsonDiff.asJson(source, target);
-            } catch (IOException e) {
-                LOGGER.log(Level.SEVERE, "error happen when calculate the patch", e);
-                return;
-            }
-        }
-
-        if (patch != null) {
-            File userJSONFile = new File(userConfigDir, "user.json");
-
-            try (InputStream newSystemInput = new FileInputStream(systemConfig);
-                 OutputStream userFileOutput = new FileOutputStream(userConfig);
-                 OutputStream patchFileOutput = new FileOutputStream(userJSONFile)){
-                ObjectMapper jsonReader = new ObjectMapper();
-                JsonNode target = JsonPatch.apply(patch, jsonReader.readTree(yamlToJson(newSystemInput)));
-
-                String userYaml = jsonToYaml(new ByteArrayInputStream(target.toString().getBytes(StandardCharsets.UTF_8)));
-
-                userFileOutput.write(userYaml.getBytes(StandardCharsets.UTF_8));
-                patchFileOutput.write(patch.toString().getBytes(StandardCharsets.UTF_8));
-            } catch (IOException e) {
-                LOGGER.log(Level.SEVERE, "error happen when copy the new system config", e);
-            }
-        } else {
-            LOGGER.warning("there's no patch of casc");
-        }
+        File rootDir = Jenkins.getInstance().getRootDir();
+        PatchConfig.patchConfig(new File(rootDir, DEFAULT_JENKINS_YAML_FILE),
+            new File(rootDir, JENKINS_BACKUP_YAML_FILE),
+            new File(rootDir, "casc_config_auto/" + DEFAULT_JENKINS_YAML_FILE));
     }
 
     private static URL findConfig(String path) {
@@ -139,21 +130,44 @@ public class PatchConfig {
         }
     }
 
-    private static String jsonToYaml(InputStream input) throws IOException {
-        ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
-        ObjectMapper jsonReader = new ObjectMapper();
+    private static JsonNode merge(JsonNode mainNode, JsonNode updateNode) {
+        if (mainNode == null || updateNode == null) {
+            return mainNode;
+        }
+        Iterator<String> fieldNames = updateNode.fieldNames();
 
-        Object obj = jsonReader.readValue(input, Object.class);
+        while (fieldNames.hasNext()) {
+            String updatedFieldName = fieldNames.next();
+            JsonNode valueToBeUpdated = mainNode.get(updatedFieldName);
+            JsonNode updatedValue = updateNode.get(updatedFieldName);
 
-        return yamlReader.writeValueAsString(obj);
-    }
-
-    private  static String yamlToJson(InputStream input) throws IOException {
-        ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
-        ObjectMapper jsonReader = new ObjectMapper();
-
-        Object obj = yamlReader.readValue(input, Object.class);
-
-        return jsonReader.writeValueAsString(obj);
+            if (valueToBeUpdated != null && valueToBeUpdated.isArray() &&
+                updatedValue.isArray()) {
+                ArrayNode updatedArrayNode = (ArrayNode)updatedValue;
+                ArrayNode arrayNodeToBeUpdated = (ArrayNode)valueToBeUpdated;
+                for(int i = 0; updatedArrayNode.has(i);++i) {
+                    if(arrayNodeToBeUpdated.has(i)) {
+                        JsonNode mergedNode = merge(arrayNodeToBeUpdated.get(i), updatedArrayNode.get(i));
+                        arrayNodeToBeUpdated.set(i, mergedNode);
+                    } else {
+                        arrayNodeToBeUpdated.add(updatedArrayNode.get(i));
+                    }
+                }
+                // if the Node is an @ObjectNode
+            } else if (valueToBeUpdated != null && valueToBeUpdated.isObject() && updatedValue != null && !updatedValue.isNull()) {
+                merge(valueToBeUpdated, updatedValue);
+            } else {
+                if (updatedValue != null && !updatedValue.isNull()) {
+                    ((ObjectNode) mainNode).replace(updatedFieldName, updatedValue);
+                }
+                else {
+                    ((ObjectNode) mainNode).remove(updatedFieldName);
+                }
+            }
+        }
+        if (updateNode instanceof TextNode) {
+            return updateNode;
+        }
+        return mainNode;
     }
 }
