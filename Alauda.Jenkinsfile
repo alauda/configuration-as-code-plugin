@@ -91,15 +91,31 @@ pipeline {
 		}
 
 		stage("Code Scan"){
-			steps{
-				container("tools"){
-					script{
-					  if(env.BRANCH_NAME == "alauda"){
-					    env.BRANCH_NAME = "master"
-						  deploy.scan().startACPSonar(null, "-D sonar.projectVersion=${RELEASE_VERSION}")
-					  } else {
-					    env.BRANCH_NAME = "alauda"
-					  }
+			failFast true
+			parallel {
+				stage("Code Scan"){
+					steps{
+						container("tools"){
+							script{
+							if(env.BRANCH_NAME == "alauda"){
+								env.BRANCH_NAME = "master"
+								deploy.scan().startACPSonar(null, "-D sonar.projectVersion=${RELEASE_VERSION}")
+							} else {
+								env.BRANCH_NAME = "alauda"
+							}
+							}
+						}
+					}
+				}
+				stage('Sec Scan'){
+					steps {
+						script{
+							def sec = deploy.secScan("java", false, 1)
+							sec.containerName = 'java'
+							container(sec.containerName){
+								sec.install().start()
+							}
+						}
 					}
 				}
 			}
